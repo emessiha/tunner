@@ -4,6 +4,13 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <parent>
+        <artifactId>Tunner</artifactId>
+        <groupId>com.lob</groupId>
+        <version>0.1</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>    
+
     <groupId>com.lob</groupId>
     <artifactId>tunclient</artifactId>
     <version>0.1</version>
