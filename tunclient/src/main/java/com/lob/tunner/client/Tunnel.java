@@ -95,6 +95,7 @@ public class Tunnel {
         _port = port;
         _forwardPort = forwardPort;
 
+        AutoLog.INFO.log("Try starting new tunnel to %s:%d and forwarding to %d ", target, port, forwardPort);
         _writer.start();
     }
 
@@ -147,14 +148,20 @@ public class Tunnel {
             else {
                 _client.authPassword(user, Config.getServerPass());
             }
+
+            AutoLog.INFO.log("Tunnel established ...");
         }
         catch(UserAuthException uae) {
             AutoLog.ERROR.exception(uae).log("Cannot authenticate using default user - " + user);
             throw new IOException("Invalid username / password!");
         }
 
+        /**
+         * todo: we always try to forward to a port on remote "local" host
+         */
+        final String remoteHost = "127.0.0.1";
         final LocalPortForwarder.Parameters params = new LocalPortForwarder.Parameters(
-                Config.getLocalAddress(), Config.getLocalPort(), _target, _port
+                Config.getListenAddress(), Config.getListenPort(), remoteHost, _forwardPort
         );
 
         /**
@@ -212,6 +219,7 @@ public class Tunnel {
                 int id = block.connection();
 
                 if (block.type() == Block.BLOCK_DATA) {
+                    AutoLog.INFO.log("Read in a new data block for connection %d ...", id);
                     Connection conn = _connections.get(id);
                     if(conn == null) {
                         AutoLog.WARN.log("Found non-existing connection - " + id);
@@ -297,6 +305,7 @@ public class Tunnel {
                     }
 
                     Block block = _blocks.remove();
+                    AutoLog.INFO.log("Write a block of %d bytes for connection %d ...", block.length(), block.connection());
                     _writeBlock(channel, block);
                 }
                 finally {

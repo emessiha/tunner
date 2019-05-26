@@ -18,7 +18,7 @@ public class Config {
         parser.addArgument("-i", "--interface").setDefault("127.0.0.1")
                 .help("Default local interface to listen on, default to 127.0.0.1");
 
-        parser.addArgument("-l", "--listen").setDefault(8080)
+        parser.addArgument("-l", "--listen").type(Integer.class).setDefault(8080)
                 .help("Default local port to listen on, default to 8080");
 
         if(isClient) {
@@ -31,9 +31,10 @@ public class Config {
             parser.addArgument("-p", "--password")
                     .help("Password to use to connect to remote server");
 
-            parser.addArgument("-r", "--remotePort").setDefault(22)
+            parser.addArgument("-r", "--remotePort").type(Integer.class).setDefault(22)
                     .help("Remote server port to connect, default to 22");
-            parser.addArgument("-f", "--forwardPort").setDefault(8080)
+
+            parser.addArgument("-f", "--forwardPort").type(Integer.class).setDefault(8080)
                     .help("Remote server port to tunnel to, default to 8080");
 
             parser.addArgument("server").nargs(1).required(true)
@@ -46,7 +47,7 @@ public class Config {
             parser.addArgument("-s", "--server").setDefault("127.0.0.1")
                     .help("Remote proxy server address to forward tunneling connection, default to 127.0.0.1");
 
-            parser.addArgument("-f", "--forwardPort").setDefault(8888)
+            parser.addArgument("-f", "--forwardPort").type(Integer.class).setDefault(8888)
                     .help("Remote proxy port to forward tunneling connection to, default to 8888");
         }
 
@@ -58,8 +59,8 @@ public class Config {
             System.exit(1);
         }
 
-        _localAddress = ns.getString("interface");
-        _localPort = ns.getInt("listen");
+        _listenAddress = ns.getString("interface");
+        _listenPort = ns.getInt("listen");
 
         if(isClient) {
             _serverAddress = ns.getList("server").get(0).toString();
@@ -107,14 +108,14 @@ public class Config {
         return _forwardPort;
     }
 
-    private static String _localAddress = "127.0.0.1";
-    public static String getLocalAddress() {
-        return _localAddress;
+    private static String _listenAddress = "127.0.0.1";
+    public static String getListenAddress() {
+        return _listenAddress;
     }
 
-    private static int _localPort = 8080;
-    public static int getLocalPort() {
-        return _localPort;
+    private static int _listenPort = 8080;
+    public static int getListenPort() {
+        return _listenPort;
     }
 
     private static String _proxyAddress = "127.0.0.1";

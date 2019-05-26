@@ -22,7 +22,7 @@ public class Connection {
     private short _resSeq = 0;
 
     public Connection(SocketChannel channel) {
-        _id = (int)((System.currentTimeMillis() / 1000) * 1000) + _COUNTER.incrementAndGet() % 1000;
+        _id = (int)((System.currentTimeMillis() / 1000 / 1000) * 1000) + _COUNTER.incrementAndGet() % 1000;
         _channel = channel;
 
         System.out.println("Creating connection - " + _id);

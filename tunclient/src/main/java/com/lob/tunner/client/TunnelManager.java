@@ -83,6 +83,8 @@ public class TunnelManager {
      * @param data
      */
     public void handleControl(Tunnel tunnel, int connId, short control, ByteBuffer data) {
+        AutoLog.INFO.log("Handling control %d for connection %d ...", control, connId);
+
         Connection conn;
         switch(control) {
             case Block.CODE_ABORT:

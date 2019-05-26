@@ -70,6 +70,8 @@ public class Tunnel {
                 // prepare for next block!!!!
                 _header.clear();
                 _readState = _RS_PAYLOAD;
+
+                AutoLog.INFO.log("Reading a new block header of %d bytes ...", len);
             }
             else if(_readState == _RS_PAYLOAD) {
                 if(_block.read(data)) {
@@ -84,6 +86,8 @@ public class Tunnel {
     public synchronized void write(Block block) {
         // we a block is here, let's just written it out!
         short length = block.length();
+
+        AutoLog.INFO.log("Writing a block of %d bytes ...", length);
 
         // 1. write header on channel
         _headerOut.clear();
@@ -148,6 +152,7 @@ public class Tunnel {
         if (block.type() == Block.BLOCK_DATA) {
             int connId = block.connection();
 
+            AutoLog.INFO.log("Processing data block for connection %d ...", connId);
             final Connection conn = _connections.get(connId);
             if(conn == null) {
                 AutoLog.ERROR.log("Receive block for non-existing connection " + connId);

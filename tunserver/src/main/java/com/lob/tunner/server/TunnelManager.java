@@ -58,6 +58,8 @@ public class TunnelManager {
      * @param data
      */
     public void handleControlBlock(Tunnel tunnel, int conId, short control, ByteBuffer data) {
+        AutoLog.INFO.log("Handling control %d for connection %d ...", control, conId);
+
         switch(control) {
             case Block.CODE_START:
                 /**

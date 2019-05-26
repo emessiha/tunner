@@ -1,5 +1,7 @@
 package com.lob.tunner.client;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 import com.lob.tunner.common.Config;
 import com.lob.tunner.logger.AutoLog;
 import io.netty.bootstrap.ServerBootstrap;
@@ -7,18 +9,16 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import net.sourceforge.argparse4j.ArgumentParsers;
-import net.sourceforge.argparse4j.inf.ArgumentParser;
-import net.sourceforge.argparse4j.inf.ArgumentParserException;
-import net.sourceforge.argparse4j.inf.Namespace;
+
+// import java.util.logging.Level;
+// import java.util.logging.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Create a listening port to accept client connections, read-in data and multiplexing the data on
  * one of the tunnels
  */
 public class Main {
-    private static int port=8080;
-
     public final static EventLoopGroup REMOTEWORKER =new NioEventLoopGroup(1);
     public final static EventLoopGroup LOCALWORKER = new NioEventLoopGroup(1);
 
@@ -26,6 +26,10 @@ public class Main {
     private final static EventLoopGroup BOSS = new NioEventLoopGroup(1);
 
     public static void main(String[] args){
+        AutoLog.INFO.log("Disable logging ...");
+        Logger root = (Logger)LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        root.setLevel(Level.OFF);
+
         Config.initialize(args, true);
 
         try {
@@ -49,9 +53,10 @@ public class Main {
                         }
                     });
 
-            ChannelFuture future = bootstrap.bind(Main.port ).sync();
+            int port = Config.getListenPort();
+            ChannelFuture future = bootstrap.bind(port ).sync();
 
-            AutoLog.INFO.log("Starting at port " + Main.port);
+            AutoLog.INFO.log("Starting at port " + port);
 
             future.channel().closeFuture().sync();
         } catch (InterruptedException e) {
