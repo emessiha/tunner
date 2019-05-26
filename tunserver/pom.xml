@@ -15,5 +15,11 @@
     <artifactId>tunserver</artifactId>
     <version>0.1</version>
 
-    
+    <dependencies>
+        <dependency>
+            <groupId>com.lob</groupId>
+            <artifactId>tuncommon</artifactId>
+            <version>0.1</version>
+        </dependency>
+    </dependencies>
 </project>

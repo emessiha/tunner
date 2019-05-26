@@ -2,6 +2,7 @@ package com.lob.tunner.server;
 
 import com.lob.tunner.common.Config;
 import com.lob.tunner.logger.AutoLog;
+import com.lob.tunner.server.echo.EchoServer;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -10,6 +11,8 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
 
 /**
  * Create a listening port to accept client connections, read-in data and multiplexing the data on
@@ -23,10 +26,26 @@ public class Main {
     private final static TunnelManager _tunnelManager = TunnelManager.getInstance();
     private final static EventLoopGroup BOSS = new NioEventLoopGroup(1);
 
-    public static void main(String[] args){
-        Config.initialize(args);
+    public static void main(String[] args) throws Exception {
+        Config.initialize(args, false);
 
         try {
+            if(Config.isTestMode()) {
+                // for testing purpose
+                AutoLog.INFO.log("Starting server in testing mode with an echo server running!");
+                ChannelFuture future = EchoServer.start(Config.getProxyPort());
+                /*
+                future.addListener(new GenericFutureListener<Future<? super Void>>() {
+                    @Override
+                    public void operationComplete(Future<? super Void> future) throws Exception {
+                        if(future instanceof ChannelFuture) {
+                            ((ChannelFuture)future).channel().closeFuture().sync();
+                        }
+                    }
+                });
+                */
+            }
+
             _tunnelManager.start();
 
             /**

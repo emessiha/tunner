@@ -10,8 +10,13 @@ import net.schmizz.sshj.common.IOUtils;
 import net.schmizz.sshj.common.SSHPacket;
 import net.schmizz.sshj.connection.channel.direct.AbstractDirectChannel;
 import net.schmizz.sshj.connection.channel.direct.LocalPortForwarder;
+import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
 import net.schmizz.sshj.userauth.UserAuthException;
+import net.schmizz.sshj.userauth.keyprovider.OpenSSHKeyFile;
+import net.schmizz.sshj.userauth.password.PasswordFinder;
+import net.schmizz.sshj.userauth.password.Resource;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
@@ -31,6 +36,7 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class Tunnel {
     private static final int _DEFAULT_PORT = 22;
+    private static final int _FORWARD_PORT = 8080;
 
     private final ByteBuffer _header = ByteBuffer.allocate(8);
     private final ByteBuffer _headerOut = ByteBuffer.allocate(8);
@@ -48,6 +54,7 @@ public class Tunnel {
 
     private String _target = "localhost";
     private int _port = _DEFAULT_PORT;
+    private int _forwardPort = _FORWARD_PORT;
     private AbstractDirectChannel _channel = null;
 
     /**
@@ -72,19 +79,21 @@ public class Tunnel {
         return _connections.size() > 10;
     }
 
-    public void start(String target) throws IOException {
-        start(target, _DEFAULT_PORT);
+    public void start(String target, int forwardPort) throws IOException {
+        start(target, _DEFAULT_PORT, forwardPort);
     }
 
     /**
      * Start the tunnel
      * @param target
      * @param port
+     * @param forwardPort
      * @throws IOException
      */
-    public void start(String target, int port) throws IOException {
+    public void start(String target, int port, int forwardPort) throws IOException {
         _target = target;
         _port = port;
+        _forwardPort = forwardPort;
 
         _writer.start();
     }
@@ -104,16 +113,43 @@ public class Tunnel {
     }
 
     private void _connect() throws IOException {
+        _client.addHostKeyVerifier(new PromiscuousVerifier());
+
         _client.loadKnownHosts();
         _client.connect(_target, _port);
 
-        String defaultUser = System.getProperty("user.name");
+        String user = Config.getServerUser();
+        if(user == null || user.isEmpty()) {
+            user = System.getProperty("user.name");
+        }
+
         try {
-            AutoLog.DEBUG.log("Try authenticate using system user - " + defaultUser);
-            _client.authPublickey(defaultUser);
+            AutoLog.DEBUG.log("Try authenticate using system user - " + user);
+
+            String key = Config.getServerKey();
+            if(key != null && !key.isEmpty()) {
+                OpenSSHKeyFile keyFile;
+                keyFile = new OpenSSHKeyFile();
+                keyFile.init(new File(key), new PasswordFinder() {
+                    @Override
+                    public char[] reqPassword(Resource<?> resource) {
+                        final String pass = Config.getServerPass();
+                        return pass.toCharArray();
+                    }
+
+                    @Override
+                    public boolean shouldRetry(Resource<?> resource) {
+                        return false;
+                    }
+                });
+                _client.authPublickey(user, keyFile);
+            }
+            else {
+                _client.authPassword(user, Config.getServerPass());
+            }
         }
         catch(UserAuthException uae) {
-            AutoLog.ERROR.log("Cannot authenticate using default user - " + defaultUser);
+            AutoLog.ERROR.exception(uae).log("Cannot authenticate using default user - " + user);
             throw new IOException("Invalid username / password!");
         }
 
@@ -253,7 +289,7 @@ public class Tunnel {
                 _lock.lock();
                 try {
                     if(_blocks.isEmpty()) {
-                        if(_empty.await(500, TimeUnit.MILLISECONDS)) {
+                        if(!_empty.await(500, TimeUnit.MILLISECONDS)) {
                             // time out
                             _writeNoise(channel);
                             continue;

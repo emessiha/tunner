@@ -7,6 +7,10 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import net.sourceforge.argparse4j.ArgumentParsers;
+import net.sourceforge.argparse4j.inf.ArgumentParser;
+import net.sourceforge.argparse4j.inf.ArgumentParserException;
+import net.sourceforge.argparse4j.inf.Namespace;
 
 /**
  * Create a listening port to accept client connections, read-in data and multiplexing the data on
@@ -22,7 +26,7 @@ public class Main {
     private final static EventLoopGroup BOSS = new NioEventLoopGroup(1);
 
     public static void main(String[] args){
-        Config.initialize(args);
+        Config.initialize(args, true);
 
         try {
             _tunnelManager.start();

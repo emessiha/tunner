@@ -123,7 +123,7 @@ public class TunnelManager {
     private final Tunnel _createTunnel() throws IOException {
         Tunnel tunnel = new Tunnel();
 
-        tunnel.start(Config.getServerAddress(), Config.getServerPort());
+        tunnel.start(Config.getServerAddress(), Config.getServerPort(), Config.getForwardPort());
         _tunnels.add(tunnel);
 
         return tunnel;
