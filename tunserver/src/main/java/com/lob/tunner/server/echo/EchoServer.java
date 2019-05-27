@@ -1,33 +1,42 @@
 package com.lob.tunner.server.echo;
 
+import com.lob.tunner.logger.AutoLog;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 
-import java.net.InetSocketAddress;
-
 public class EchoServer {
-    public static ChannelFuture start(int port) throws Exception {
-        EventLoopGroup group = new NioEventLoopGroup();
-        try {
-            ServerBootstrap b = new ServerBootstrap();
-            b.group(group)
-                    .channel(NioServerSocketChannel.class)
-                    .localAddress(new InetSocketAddress(port))
-                    .childHandler(new ChannelInitializer<SocketChannel>() {
-                        @Override
-                        protected void initChannel(SocketChannel socketChannel) throws Exception {
-                            socketChannel.pipeline().addLast(new EchoServerHandler());
-                        }
-                    });
+    private final static EventLoopGroup _LOOP = new NioEventLoopGroup();
+    private final static ServerBootstrap _bootstrap = new ServerBootstrap();
 
-            return b.bind();
-        } finally {
-            group.shutdownGracefully().sync();
-        }
+    public static ChannelFuture start(int port) throws Exception {
+        _bootstrap.group(_LOOP)
+                .channel(NioServerSocketChannel.class)
+                .option(ChannelOption.SO_BACKLOG, 1024)
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 1000)
+                .childHandler(new ChannelInitializer<SocketChannel>() {
+                    @Override
+                    protected void initChannel(SocketChannel socketChannel) throws Exception {
+                        AutoLog.INFO.log("Receiving one new connection from %s ...", socketChannel.remoteAddress().toString());
+                        socketChannel.pipeline().addLast(new EchoServerHandler());
+                    }
+                });
+
+        return _bootstrap.bind(port).sync();
+    }
+
+    public static void shutdown() throws Exception {
+        _LOOP.shutdownGracefully().sync();
+    }
+
+    public static void main(String []args) throws Exception {
+        ChannelFuture future = start(8888);
+        System.out.println("EchoServer started at 8888 ...");
+        future.channel().closeFuture().sync();
     }
 }

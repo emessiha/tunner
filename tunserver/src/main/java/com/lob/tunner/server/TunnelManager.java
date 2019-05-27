@@ -58,7 +58,7 @@ public class TunnelManager {
      * @param data
      */
     public void handleControlBlock(Tunnel tunnel, int conId, short control, ByteBuffer data) {
-        AutoLog.INFO.log("Handling control %d for connection %d ...", control, conId);
+        AutoLog.INFO.log("Handling control %04x for connection %08x ...", control, conId);
 
         switch(control) {
             case Block.CODE_START:
@@ -67,8 +67,8 @@ public class TunnelManager {
                  */
                 if(_connections.containsKey(conId)) {
                     // dame!
-                    AutoLog.ERROR.log("Connection with ID already exists - " + conId);
-                    throw new RuntimeException("Found already existing connection - " + conId);
+                    AutoLog.ERROR.log("Connection with ID already exists %08x", conId);
+                    throw new RuntimeException(String.format("Found already existing connection %08x", conId));
                 }
                 else {
                     Connection conn = new Connection(conId);
@@ -83,8 +83,8 @@ public class TunnelManager {
                 break;
             case Block.CODE_RESUME:
                 if(!_connections.containsKey(conId)) {
-                    AutoLog.ERROR.log("Resuming non-existing connection - " + conId);
-                    throw new RuntimeException("Try resuming non-existing connection - " + conId);
+                    AutoLog.ERROR.log("Resuming non-existing connection %08x", conId);
+                    throw new RuntimeException(String.format("Try resuming non-existing connection %08x", conId));
                 }
 
                 // we need to abort from old tunnel if there's and associate it with new one
@@ -94,7 +94,7 @@ public class TunnelManager {
                 break;
             case Block.CODE_ABORT:
                 if(!_connections.containsKey(conId)) {
-                    AutoLog.WARN.log("Abort non-existing connection - " + conId);
+                    AutoLog.WARN.log("Abort non-existing connection %08x", conId);
                     break;
                 }
                 else {

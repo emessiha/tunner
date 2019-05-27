@@ -18,7 +18,7 @@ public class BlockUtils {
      * @return
      */
     public static short sequence(short seq) {
-        return (short)((short)0x4000 + (short)seq & 0x3FFF);
+        return (short)(0x4000 | (seq & 0x3FFF));
     }
 
     /**
@@ -27,6 +27,6 @@ public class BlockUtils {
      * @return
      */
     public static short control(short code) {
-        return (short)((short)0x8000 + (short)code & 0x3FFF);
+        return (short)(0x8000 | (code & 0x3FFF));
     }
 }

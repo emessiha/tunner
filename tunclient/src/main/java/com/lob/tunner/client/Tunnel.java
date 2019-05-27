@@ -18,6 +18,7 @@ import net.schmizz.sshj.userauth.password.Resource;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
@@ -200,6 +201,8 @@ public class Tunnel {
                 channel.read(buffer);
             }
 
+            // ready for writing out ...
+            buffer.rewind();
             return new Block(conn, typeSeq, len, buffer);
         }
     }
@@ -254,7 +257,10 @@ public class Tunnel {
     }
 
     private void _writeNoise(WritableByteChannel channel) throws IOException {
-        Block block = new Block(0, BlockUtils.control(Block.CODE_ECHO));
+        ByteBuffer bb = ByteBuffer.allocate(1024);
+
+        Block block = new Block(0, BlockUtils.control(Block.CODE_ECHO), (short)1024, bb);
+
         // TODO: let's add random length of payload here ...
         _writeBlock(channel, block);
     }
@@ -290,7 +296,8 @@ public class Tunnel {
             AutoLog.INFO.log("Tunnel created, starting tunnel reader ...");
             _reader.start();
 
-            WritableByteChannel channel = Channels.newChannel(_channel.getOutputStream());
+            OutputStream os = _channel.getOutputStream();
+            WritableByteChannel channel = Channels.newChannel(os);
 
             while(!_stop) {
                 // if there are data, write data, otherwise sleep and write background data ...
@@ -299,14 +306,19 @@ public class Tunnel {
                     if(_blocks.isEmpty()) {
                         if(!_empty.await(500, TimeUnit.MILLISECONDS)) {
                             // time out
-                            _writeNoise(channel);
+                            if(false) {
+                                // let's not flush for testing purpose ...
+                                _writeNoise(channel);
+                                os.flush();
+                            }
                             continue;
                         }
                     }
 
                     Block block = _blocks.remove();
-                    AutoLog.INFO.log("Write a block of %d bytes for connection %d ...", block.length(), block.connection());
+                    AutoLog.INFO.log("Write a block of %d bytes for connection %08x ...", block.length(), block.connection());
                     _writeBlock(channel, block);
+                    os.flush();
                 }
                 finally {
                     _lock.unlock();

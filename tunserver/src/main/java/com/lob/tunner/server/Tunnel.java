@@ -71,7 +71,7 @@ public class Tunnel {
                 _header.clear();
                 _readState = _RS_PAYLOAD;
 
-                AutoLog.INFO.log("Reading a new block header of %d bytes ...", len);
+                AutoLog.INFO.log("Reading a new block header of %d bytes (typeSeq=%04x, conn=%08x) ...", len, typeSeq, conn);
             }
             else if(_readState == _RS_PAYLOAD) {
                 if(_block.read(data)) {
@@ -95,18 +95,21 @@ public class Tunnel {
         _headerOut.putShort(length);
         _headerOut.putInt(block.connection());
 
-        _channel.writeAndFlush(BufferUtils.fromNioBuffer(_headerOut));
+        _channel.write(BufferUtils.fromNioBuffer(_headerOut));
 
         // 2. if payload, write payload
         if(length > 0) {
-            _channel.writeAndFlush(BufferUtils.fromNioBuffer(block.data()));
+            ByteBuffer data = block.data();
+            _channel.write(BufferUtils.fromNioBuffer(data));
 
             // 3. if payload and payload size not multiple of 8, write padding bytes
             length %= 8;
             if(length > 0) {
-                _channel.writeAndFlush(Unpooled.wrappedBuffer(BlockUtils.PADDING, 0, 8 - length));
+                _channel.write(Unpooled.wrappedBuffer(BlockUtils.PADDING, 0, 8 - length));
             }
         }
+
+        _channel.flush();
     }
 
     /**
@@ -117,7 +120,7 @@ public class Tunnel {
      */
     public void multiplex(Connection conn) {
         if(_connections.containsKey(conn.identifier())) {
-            AutoLog.WARN.log("Connection already on tunnel - " + conn.identifier());
+            AutoLog.WARN.log("Connection %08x already on tunnel ", conn.identifier());
         }
         else {
             conn.tunnel(this);
@@ -152,10 +155,10 @@ public class Tunnel {
         if (block.type() == Block.BLOCK_DATA) {
             int connId = block.connection();
 
-            AutoLog.INFO.log("Processing data block for connection %d ...", connId);
+            AutoLog.INFO.log("Processing data block for connection %08x ...", connId);
             final Connection conn = _connections.get(connId);
             if(conn == null) {
-                AutoLog.ERROR.log("Receive block for non-existing connection " + connId);
+                AutoLog.ERROR.log("Receive block for non-existing connection %08x", connId);
                 write(new Block(connId, BlockUtils.control(Block.CODE_ABORT)));
             }
             else {

@@ -53,6 +53,7 @@ public class Connection {
     }
 
     public void connect(String address, int port) {
+        AutoLog.INFO.log("Try connecting to proxy %s:%d ...", address, port);
         // create a connection ...
         Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(TunnelManager.CONNWORKERS)
@@ -61,7 +62,7 @@ public class Connection {
                 .handler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(io.netty.channel.socket.SocketChannel ch) throws Exception {
-                        AutoLog.INFO.log("Connection connect to proxy successfully - " + _id);
+                        AutoLog.INFO.log("Connection %08x connect to proxy successfully", _id);
                         _channel = ch;
                         ch.pipeline().addLast(new IOHandler());
 
@@ -77,11 +78,11 @@ public class Connection {
 
         bootstrap.connect(address, port).addListener(future -> {
             if (future.isSuccess()) {
-                AutoLog.INFO.log("连接成功: 到代理服务器,允许读浏览器请求 - " + _id);
+                AutoLog.INFO.log("连接成功: 到代理服务器,允许读浏览器请求: %08x", _id);
                 _channel.config().setAutoRead(true);
             }
             else {
-                AutoLog.ERROR.log("连接失败:  到代理服务器 - " + _id);
+                AutoLog.ERROR.log("连接失败:  到代理服务器: %08x", _id);
                 shutdown();
             }
         });
@@ -102,6 +103,7 @@ public class Connection {
      */
     public void write(Block block) {
         if (_channel == null) {
+            AutoLog.INFO.log("Connection %08x not started yet. Caching block ...", _id);
             // not ready!!! Let's wait
             synchronized (_blocks) {
                 _blocks.add(block);
@@ -111,6 +113,8 @@ public class Connection {
         }
 
         synchronized (_blocks) {
+            AutoLog.INFO.log("Connection %08x just started. Writing %d cached block ...", _id, _blocks.size());
+
             // Let's finish queued blocks first!
             while(_blocks.size() > 0) {
                 Block b = _blocks.remove();
@@ -126,6 +130,8 @@ public class Connection {
         if(seq != _reqSeq) {
             throw new OOOException(_reqSeq, seq);
         }
+
+        AutoLog.INFO.log("Writing block %d of %d bytes on connection %08x ...", _reqSeq, block.length(), _id);
 
         ByteBuffer data = block.data();
         _channel.writeAndFlush(BufferUtils.fromNioBuffer(data));

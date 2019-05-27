@@ -103,6 +103,9 @@ public class Block {
             _data.put(data.get());
         }
 
+        // ready for processing!!!
+        _data.rewind();
+
         return true;
     }
 }
