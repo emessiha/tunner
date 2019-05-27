@@ -5,6 +5,7 @@ import com.lob.tunner.BufferUtils;
 import com.lob.tunner.common.Block;
 import com.lob.tunner.common.Config;
 import com.lob.tunner.logger.AutoLog;
+import com.lob.tunner.logger.HexDump;
 import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.common.IOUtils;
 import net.schmizz.sshj.common.SSHPacket;
@@ -39,6 +40,7 @@ public class Tunnel {
     private static final int _DEFAULT_PORT = 22;
     private static final int _FORWARD_PORT = 8080;
 
+    private final ByteBuffer _padding = ByteBuffer.allocate(8);
     private final ByteBuffer _header = ByteBuffer.allocate(8);
     private final ByteBuffer _headerOut = ByteBuffer.allocate(8);
     private final ConcurrentHashMap<Integer, Connection> _connections = new ConcurrentHashMap<>();
@@ -177,6 +179,8 @@ public class Tunnel {
             channel.read(_header);
         }
 
+        AutoLog.INFO.log("Read header - %s", HexDump.dumpHexString(_header.array()));
+
         _header.rewind();
         short typeSeq = _header.getShort();
         short len = _header.getShort();
@@ -196,9 +200,23 @@ public class Tunnel {
             return new Block(conn, typeSeq);
         }
         else {
-            ByteBuffer buffer = ByteBuffer.allocate(BufferUtils.round(len));
+            ByteBuffer buffer = ByteBuffer.allocate(len);
             while (buffer.hasRemaining()) {
                 channel.read(buffer);
+            }
+
+            AutoLog.INFO.log("Read data - %s", HexDump.dumpHexString(buffer.array()));
+            // If there are padding, let's get the padding
+            int padding = len % 8;
+            if (padding > 0) {
+                _padding.rewind();
+                _padding.limit(8 - padding);
+
+                while(_padding.hasRemaining()) {
+                    channel.read(_padding);
+                }
+
+                AutoLog.INFO.log("Read data - %s", HexDump.dumpHexString(_padding.array(), 0, 8 - padding));
             }
 
             // ready for writing out ...
@@ -278,12 +296,16 @@ public class Tunnel {
 
         // 2. if payload, write payload
         if(length > 0) {
+            AutoLog.INFO.log("Written header - %s", HexDump.dumpHexString(_headerOut.array()));
             _writeData(channel, block.data());
+
+            AutoLog.INFO.log("Written payload - %s", HexDump.dumpHexString(block.data().array()));
 
             // 3. if payload and payload size not multiple of 8, write padding bytes
             length %= 8;
             if(length > 0) {
                 _writeData(channel, ByteBuffer.wrap(BlockUtils.PADDING, 0, (8 - length)));
+                AutoLog.INFO.log("Written padding - %s", HexDump.dumpHexString(BlockUtils.PADDING, 0, 8 - length));
             }
         }
     }
@@ -316,7 +338,6 @@ public class Tunnel {
                     }
 
                     Block block = _blocks.remove();
-                    AutoLog.INFO.log("Write a block of %d bytes for connection %08x ...", block.length(), block.connection());
                     _writeBlock(channel, block);
                     os.flush();
                 }

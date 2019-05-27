@@ -20,9 +20,11 @@ public class BufferUtils {
     }
 
     public static ByteBuffer toNioBuffer(ByteBuf buffer) {
+        /*
         if (buffer.isDirect()) {
             return buffer.nioBuffer();
         }
+        */
         final byte[] bytes = new byte[buffer.readableBytes()];
         buffer.getBytes(buffer.readerIndex(), bytes);
         return ByteBuffer.wrap(bytes);

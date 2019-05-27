@@ -7,16 +7,23 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.socket.SocketChannel;
 import io.netty.util.CharsetUtil;
 
 @ChannelHandler.Sharable
 public class EchoServerHandler extends ChannelInboundHandlerAdapter {
+    private final SocketChannel _channel;
+
+    EchoServerHandler(SocketChannel channel) {
+        _channel = channel;
+    }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         ByteBuf in = (ByteBuf) msg;
         AutoLog.INFO.log("Server received: " + in.toString(CharsetUtil.UTF_8));
-        ctx.writeAndFlush(in);
+        _channel.writeAndFlush(in);
+        // ctx.writeAndFlush(in);
     }
 
     @Override

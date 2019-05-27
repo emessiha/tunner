@@ -1,5 +1,6 @@
 package com.lob.tunner.server;
 
+import com.lob.tunner.BlockUtils;
 import com.lob.tunner.BufferUtils;
 import com.lob.tunner.OOOException;
 import com.lob.tunner.common.Block;
@@ -155,7 +156,7 @@ public class Connection {
                 throw new IOException("Packet size too large - " + len);
             }
 
-            _tunnel.write(new Block(_id, _resSeq ++, (short)len, BufferUtils.toNioBuffer(buf)));
+            _tunnel.write(new Block(_id, BlockUtils.sequence(_resSeq ++), (short)len, BufferUtils.toNioBuffer(buf)));
             ReferenceCountUtil.release(msg);
         }
     }

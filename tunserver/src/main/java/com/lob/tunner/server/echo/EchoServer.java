@@ -23,9 +23,10 @@ public class EchoServer {
                     @Override
                     protected void initChannel(SocketChannel socketChannel) throws Exception {
                         AutoLog.INFO.log("Receiving one new connection from %s ...", socketChannel.remoteAddress().toString());
-                        socketChannel.pipeline().addLast(new EchoServerHandler());
+                        socketChannel.pipeline().addLast(new EchoServerHandler(socketChannel));
                     }
                 });
+
 
         return _bootstrap.bind(port).sync();
     }
