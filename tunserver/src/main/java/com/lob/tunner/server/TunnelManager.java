@@ -49,6 +49,16 @@ public class TunnelManager {
         _tunnels.add(tunnel);
     }
 
+    public void close(Connection conn) {
+        _connections.remove(conn.identifier());
+
+        Tunnel tunnel = conn.tunnel();
+        tunnel.write(new Block(conn.identifier(), BlockUtils.control(Block.CODE_ABORT)));
+        tunnel.remove(conn);
+
+        conn.shutdown();
+    }
+
     /**
      * Handle all control blocks received!!!
      *

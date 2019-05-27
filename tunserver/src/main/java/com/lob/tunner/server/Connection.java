@@ -7,13 +7,12 @@ import com.lob.tunner.common.Block;
 import com.lob.tunner.logger.AutoLog;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
+import io.netty.channel.*;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.ReferenceCountUtil;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -27,6 +26,7 @@ public class Connection {
     private short _reqSeq = 0;
     private short _resSeq = 0;
 
+    private boolean _connected = false;
     private final LinkedList<Block> _blocks = new LinkedList<>();
 
     public Connection(int id) {
@@ -63,23 +63,34 @@ public class Connection {
                 .handler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(io.netty.channel.socket.SocketChannel ch) throws Exception {
-                        AutoLog.INFO.log("Connection %08x connect to proxy successfully", _id);
                         _channel = ch;
                         ch.pipeline().addLast(new IOHandler());
-
-                        synchronized (_blocks) {
-                            // Let's finish queued blocks first!
-                            while(_blocks.size() > 0) {
-                                Block b = _blocks.remove();
-                                _write(b);
-                            }
-                        }
                     }
                 });
 
         bootstrap.connect(address, port).addListener(future -> {
             if (future.isSuccess()) {
                 AutoLog.INFO.log("连接成功: 到代理服务器,允许读浏览器请求: %08x", _id);
+
+                try {
+                    Thread.sleep(2000);
+                }
+                catch(InterruptedException ie) {
+
+                }
+
+                AutoLog.INFO.log("Connection %08x connect to proxy successfully", _id);
+
+                synchronized (_blocks) {
+                    // Let's finish queued blocks first!
+                    while(_blocks.size() > 0) {
+                        Block b = _blocks.remove();
+                        _write(b);
+                    }
+
+                    _connected = true;
+                }
+
                 _channel.config().setAutoRead(true);
             }
             else {
@@ -103,17 +114,17 @@ public class Connection {
      * @param block
      */
     public void write(Block block) {
-        if (_channel == null) {
-            AutoLog.INFO.log("Connection %08x not started yet. Caching block ...", _id);
-            // not ready!!! Let's wait
-            synchronized (_blocks) {
-                _blocks.add(block);
+        synchronized (_blocks) {
+            if(!_connected) {
+                AutoLog.INFO.log("Connection %08x not started yet. Caching block ...", _id);
+                // not ready!!! Let's wait
+                synchronized (_blocks) {
+                    _blocks.add(new Block(block));
+                }
+
+                return;
             }
 
-            return;
-        }
-
-        synchronized (_blocks) {
             AutoLog.INFO.log("Connection %08x just started. Writing %d cached block ...", _id, _blocks.size());
 
             // Let's finish queued blocks first!
@@ -135,7 +146,15 @@ public class Connection {
         AutoLog.INFO.log("Writing block %d of %d bytes on connection %08x ...", _reqSeq, block.length(), _id);
 
         ByteBuffer data = block.data();
-        _channel.writeAndFlush(BufferUtils.fromNioBuffer(data));
+        ChannelFuture future = _channel.writeAndFlush(BufferUtils.fromNioBuffer(data));
+        future.addListener(future1 -> {
+            if (future1.isSuccess()) {
+                AutoLog.INFO.log("Write data suceeded!");
+            }
+            else {
+                AutoLog.ERROR.exception(future.cause()).log("Write data failed!!!");
+            }
+        });
         _reqSeq ++;
     }
 
@@ -158,6 +177,20 @@ public class Connection {
 
             _tunnel.write(new Block(_id, BlockUtils.sequence(_resSeq ++), (short)len, BufferUtils.toNioBuffer(buf)));
             ReferenceCountUtil.release(msg);
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            AutoLog.ERROR.exception(cause).log("Connection %08x caught exception", _id);
+
+            TunnelManager.getInstance().close(Connection.this);
+        }
+
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+            AutoLog.INFO.log("Connection %08x closed ...", _id);
+            TunnelManager.getInstance().close(Connection.this);
+            super.channelInactive(ctx);
         }
     }
 }

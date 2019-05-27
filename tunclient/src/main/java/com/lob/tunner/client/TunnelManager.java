@@ -70,7 +70,12 @@ public class TunnelManager {
         int connId = conn.getID();
 
         _connections.remove(connId);
-        conn.tunnel().remove(connId);
+
+        Tunnel tunnel = conn.tunnel();
+
+        // notify server ...
+        tunnel.write(new Block(connId, BlockUtils.control(Block.CODE_ABORT)));
+        tunnel.remove(connId);
 
         conn.shutdown();
     }
@@ -83,7 +88,7 @@ public class TunnelManager {
      * @param data
      */
     public void handleControl(Tunnel tunnel, int connId, short control, ByteBuffer data) {
-        AutoLog.INFO.log("Handling control %d for connection %d ...", control, connId);
+        AutoLog.INFO.log("Handling control %04x for connection %08x ...", control, connId);
 
         Connection conn;
         switch(control) {
@@ -92,7 +97,7 @@ public class TunnelManager {
 
                 conn = _connections.remove(connId);
                 if(conn == null) {
-                    AutoLog.ERROR.log("Closing non-existing connection - " + connId);
+                    AutoLog.ERROR.log("Closing non-existing connection %08x", connId);
                 }
                 else {
                     conn.shutdown();

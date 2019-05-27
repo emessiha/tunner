@@ -81,13 +81,15 @@ public class ClientConnectionHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        AutoLog.ERROR.exception(cause).log("Caught exception");
+        AutoLog.ERROR.exception(cause).log("Connection %08x caught exception", _clientConnection.getID());
 
         TunnelManager.getInstance().close(_clientConnection);
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        AutoLog.INFO.log("Connection %08x closed ...", _clientConnection.getID());
+        TunnelManager.getInstance().close(_clientConnection);
         super.channelInactive(ctx);
     }
 }

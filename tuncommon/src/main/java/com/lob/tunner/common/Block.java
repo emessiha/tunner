@@ -54,6 +54,15 @@ public class Block {
         this._data = data;
     }
 
+    public Block(Block b) {
+        this._conn = b._conn;
+        this._typeSeq = b._typeSeq;
+        this._length = b._length;
+        this._data = ByteBuffer.allocate(b._data.limit());
+        this._data.put(b._data);
+        this._data.rewind();
+    }
+
     public final short getTypeSeq() {
         return _typeSeq;
     }

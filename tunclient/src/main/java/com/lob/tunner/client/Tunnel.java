@@ -240,10 +240,10 @@ public class Tunnel {
                 int id = block.connection();
 
                 if (block.type() == Block.BLOCK_DATA) {
-                    AutoLog.INFO.log("Read in a new data block for connection %d ...", id);
+                    AutoLog.INFO.log("Read in a new data block for connection %08x ...", id);
                     Connection conn = _connections.get(id);
                     if(conn == null) {
-                        AutoLog.WARN.log("Found non-existing connection - " + id);
+                        AutoLog.WARN.log("Found non-existing connection %08x", id);
 
                         write(new Block(id, BlockUtils.control(Block.CODE_ABORT)));
 
@@ -275,9 +275,9 @@ public class Tunnel {
     }
 
     private void _writeNoise(WritableByteChannel channel) throws IOException {
-        ByteBuffer bb = ByteBuffer.allocate(1024);
-
-        Block block = new Block(0, BlockUtils.control(Block.CODE_ECHO), (short)1024, bb);
+        // ByteBuffer bb = ByteBuffer.allocate(1024);
+        // Block block = new Block(0, BlockUtils.control(Block.CODE_ECHO), (short)1024, bb);
+        Block block = new Block(0, BlockUtils.control(Block.CODE_ECHO));
 
         // TODO: let's add random length of payload here ...
         _writeBlock(channel, block);
