@@ -1,7 +1,6 @@
 package com.lob.tunner.client;
 
 import com.lob.tunner.BlockUtils;
-import com.lob.tunner.BufferUtils;
 import com.lob.tunner.common.Block;
 import com.lob.tunner.common.Config;
 import com.lob.tunner.logger.AutoLog;
@@ -27,6 +26,7 @@ import java.nio.channels.WritableByteChannel;
 import java.util.LinkedList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -37,6 +37,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * Remote tunnel server will by default listen on 818 port
  */
 public class Tunnel {
+    private static final AtomicInteger _COUNTER = new AtomicInteger();
+
     private static final int _DEFAULT_PORT = 22;
     private static final int _FORWARD_PORT = 8080;
 
@@ -60,13 +62,20 @@ public class Tunnel {
     private int _forwardPort = _FORWARD_PORT;
     private AbstractDirectChannel _channel = null;
 
+    private final int _id;
+
     /**
      * Create a new tunnel
      */
     public Tunnel() {
+        _id = _COUNTER.incrementAndGet();
         _client = new SSHClient();
         _reader = new Thread(this::_readerMain);
         _writer = new Thread(this::_writerMain);
+    }
+
+    public int getID() {
+        return _id;
     }
 
     public void multiplex(Connection conn) throws IOException {
@@ -137,7 +146,8 @@ public class Tunnel {
                 keyFile.init(new File(key), new PasswordFinder() {
                     @Override
                     public char[] reqPassword(Resource<?> resource) {
-                        final String pass = Config.getServerPass();
+                        // final String pass = Config.getServerPass();
+                        final String pass = TunnelClient.password;
                         return pass.toCharArray();
                     }
 
@@ -146,6 +156,8 @@ public class Tunnel {
                         return false;
                     }
                 });
+
+                AutoLog.INFO.log("Try auth with pub key %s and pass %s ...", key, TunnelClient.password);
                 _client.authPublickey(user, keyFile);
             }
             else {
@@ -179,22 +191,28 @@ public class Tunnel {
             channel.read(_header);
         }
 
-        AutoLog.INFO.log("Read header - %s", HexDump.dumpHexString(_header.array()));
-
         _header.rewind();
         short typeSeq = _header.getShort();
-        short len = _header.getShort();
+        int len = (_header.getShort() & 0x0FFFF);
         int conn = _header.getInt();
+
+        // boolean trace = (len == Block.MAX_NO_PADDING_LENGTH);
+        boolean trace = false;
+
+        if(trace) {
+            AutoLog.INFO.log("Read header - %s", HexDump.dumpHexString(_header.array()));
+        }
+        else {
+            AutoLog.DEBUG.log("Read header - %s", HexDump.dumpHexString(_header.array()));
+        }
 
         // prepare for next block!!!!
         _header.clear();
-
 
         if(typeSeq == 0 && len == 0 && conn == 0) {
             // all 0 header!!! Ignore
             return null;
         }
-
 
         if(len == 0) {
             return new Block(conn, typeSeq);
@@ -205,7 +223,13 @@ public class Tunnel {
                 channel.read(buffer);
             }
 
-            AutoLog.INFO.log("Read data - %s", HexDump.dumpHexString(buffer.array()));
+            if(trace) {
+                AutoLog.INFO.log("Read data - %s", HexDump.dumpHexString(buffer.array()));
+            }
+            else {
+                AutoLog.DEBUG.log("Read data - %s", HexDump.dumpHexString(buffer.array()));
+            }
+
             // If there are padding, let's get the padding
             int padding = len % 8;
             if (padding > 0) {
@@ -216,7 +240,12 @@ public class Tunnel {
                     channel.read(_padding);
                 }
 
-                AutoLog.INFO.log("Read data - %s", HexDump.dumpHexString(_padding.array(), 0, 8 - padding));
+                if(trace) {
+                    AutoLog.INFO.log("Read padding - %s", HexDump.dumpHexString(_padding.array(), 0, 8 - padding));
+                }
+                else {
+                    AutoLog.DEBUG.log("Read padding - %s", HexDump.dumpHexString(_padding.array(), 0, 8 - padding));
+                }
             }
 
             // ready for writing out ...
@@ -240,7 +269,13 @@ public class Tunnel {
                 int id = block.connection();
 
                 if (block.type() == Block.BLOCK_DATA) {
-                    AutoLog.INFO.log("Read in a new data block for connection %08x ...", id);
+                    TunnelManager.TotalRead.addAndGet(block.length());
+
+                    AutoLog.INFO.log(
+                            "Read in data block (seq=%d, length=%d) for connection %08x on tunnel %08x ...",
+                            block.sequence(), block.length(), id, _id
+                    );
+
                     Connection conn = _connections.get(id);
                     if(conn == null) {
                         AutoLog.WARN.log("Found non-existing connection %08x", id);
@@ -250,7 +285,7 @@ public class Tunnel {
                         return;
                     }
 
-                    conn.write(block.sequence(), block.data());
+                    conn.respond(block);
                 }
                 else {
                     TunnelManager.getInstance().handleControl(this, id, block.control(), block.data());
@@ -284,29 +319,49 @@ public class Tunnel {
     }
 
     private void _writeBlock(WritableByteChannel channel, Block block) throws IOException {
-        short length = block.length();
+        if (block.type() == Block.BLOCK_DATA) {
+            TunnelManager.TotalWrite.addAndGet(block.length());
 
-        // 1. write header on channel
+            AutoLog.INFO.log(
+                    "Write out data block (seq=%d, length=%d) for connection %08x on tunnel %08x ...",
+                    block.sequence(), block.length(), block.connection(), _id
+            );
+        }
+
+        long start = System.currentTimeMillis();
+        int length = block.length();
+
+        int bytes = 8 + length;
+
+        // 1. respond header on channel
         _headerOut.clear();
         _headerOut.putShort(block.getTypeSeq());
-        _headerOut.putShort(length);
+        _headerOut.putShort((short)(length & 0xFFFF));
         _headerOut.putInt(block.connection());
 
         _writeData(channel, _headerOut);
 
-        // 2. if payload, write payload
+        // 2. if payload, respond payload
         if(length > 0) {
-            AutoLog.INFO.log("Written header - %s", HexDump.dumpHexString(_headerOut.array()));
+            AutoLog.DEBUG.log("Written header - %s", HexDump.dumpHexString(_headerOut.array()));
             _writeData(channel, block.data());
 
-            AutoLog.INFO.log("Written payload - %s", HexDump.dumpHexString(block.data().array()));
+            AutoLog.DEBUG.log("Written payload - %s", HexDump.dumpHexString(block.data().array()));
 
-            // 3. if payload and payload size not multiple of 8, write padding bytes
+            // 3. if payload and payload size not multiple of 8, respond padding bytes
             length %= 8;
             if(length > 0) {
-                _writeData(channel, ByteBuffer.wrap(BlockUtils.PADDING, 0, (8 - length)));
-                AutoLog.INFO.log("Written padding - %s", HexDump.dumpHexString(BlockUtils.PADDING, 0, 8 - length));
+                int padding = (8 - length);
+                bytes += padding;
+
+                _writeData(channel, ByteBuffer.wrap(BlockUtils.PADDING, 0, padding));
+                AutoLog.DEBUG.log("Written padding - %s", HexDump.dumpHexString(BlockUtils.PADDING, 0, padding));
             }
+        }
+
+        long end = System.currentTimeMillis();
+        if((end - start) > 0) {
+            AutoLog.INFO.log("!!!!!!!!%d bytes data written in %d milliseconds!!!!!!!!!", bytes, (end - start));
         }
     }
 
@@ -322,7 +377,7 @@ public class Tunnel {
             WritableByteChannel channel = Channels.newChannel(os);
 
             while(!_stop) {
-                // if there are data, write data, otherwise sleep and write background data ...
+                // if there are data, respond data, otherwise sleep and respond background data ...
                 _lock.lock();
                 try {
                     if(_blocks.isEmpty()) {

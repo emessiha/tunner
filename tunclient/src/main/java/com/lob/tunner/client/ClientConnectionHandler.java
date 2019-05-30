@@ -9,16 +9,18 @@ import io.netty.channel.*;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.util.ReferenceCountUtil;
 
+import java.nio.ByteBuffer;
+
 /**
  * ClientConnectionHandler handles a client connection by
  * 1. associate with a tunnel, if no tunnel, create one
  * 2. read incoming data from tunnel
  * 3. forward incoming data to tunnel (which will encode and wire to remote side)
  * 4. read data from tunnel
- * 5. write data to channel
+ * 5. respond data to channel
  */
 public class ClientConnectionHandler extends ChannelInboundHandlerAdapter {
-    private EventLoopGroup remoteLoopGroup = Main.REMOTEWORKER;
+    private EventLoopGroup remoteLoopGroup = TunnelClient.REMOTEWORKER;
 
     /**
      * Channel to Client APP
@@ -35,7 +37,7 @@ public class ClientConnectionHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
-        TunnelManager.getInstance().accept(this._clientConnection);
+        TunnelManager.getInstance().accept(this._clientConnection, ctx.channel());
 
         super.channelRegistered(ctx);
     }
@@ -51,7 +53,7 @@ public class ClientConnectionHandler extends ChannelInboundHandlerAdapter {
 
 
     /**
-     * Read something on channel, let's write to server ...
+     * Read something on channel, let's respond to server ...
      * @param localCtx
      * @param msg
      * @throws Exception
@@ -64,17 +66,36 @@ public class ClientConnectionHandler extends ChannelInboundHandlerAdapter {
         // Create a block from the buffer and send it to tunnel
         int bytes = buf.readableBytes();
 
-        if(bytes >= 0xFFFF) {
-            throw new RuntimeException("Read too large packet - " + bytes);
+        for(;;) {
+            // we need to split to smaller packets!!! Unlucky!!!!
+            if(bytes > Block.MAX_LENGTH) {
+                ByteBuffer data = ByteBuffer.allocate(Block.MAX_LENGTH);
+                buf.readBytes(data);
+
+                Block block = new Block(
+                        _clientConnection.getID(),
+                        BlockUtils.sequence(_clientConnection.nextRequest()),
+                        Block.MAX_LENGTH, data
+                );
+
+                _clientConnection.request(block);
+
+                bytes -= Block.MAX_LENGTH;
+
+                continue;
+            }
+
+            Block block = new Block(
+                    _clientConnection.getID(),
+                    BlockUtils.sequence(_clientConnection.nextRequest()),
+                    (short)bytes, BufferUtils.toNioBuffer(buf)
+            );
+
+            _clientConnection.request(block);
+
+            break;
         }
 
-        Block block = new Block(
-                _clientConnection.getID(),
-                BlockUtils.sequence(_clientConnection.nextRequest()),
-                (short)bytes, BufferUtils.toNioBuffer(buf)
-        );
-
-        _clientConnection.tunnel().write(block);
 
         ReferenceCountUtil.release(msg);
     }

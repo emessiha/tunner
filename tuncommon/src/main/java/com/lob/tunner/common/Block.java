@@ -25,7 +25,12 @@ public class Block {
      */
     private final short _typeSeq;
 
-    private final short _length;
+    /**
+     * Length, take 2 bytes, we use int here for unsigned integer conversion!!!
+     */
+    public final static int MAX_LENGTH = 0xFFFF;
+    public final static int MAX_NO_PADDING_LENGTH = 0xFFF8;
+    private final int _length;
 
     /**
      * Connection ID, byte 5 - 8
@@ -47,7 +52,7 @@ public class Block {
         this._data = null;
     }
 
-    public Block(int conn, short seqType, short len, ByteBuffer data) {
+    public Block(int conn, short seqType, int len, ByteBuffer data) {
         this._conn = conn;
         this._typeSeq = seqType;
         this._length = len;
@@ -71,7 +76,7 @@ public class Block {
         return _conn;
     }
 
-    public final short length() {
+    public final int length() {
         return _length;
     }
 

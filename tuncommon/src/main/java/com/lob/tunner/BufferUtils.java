@@ -1,6 +1,7 @@
 package com.lob.tunner;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
 
 import java.nio.ByteBuffer;
@@ -31,6 +32,8 @@ public class BufferUtils {
     }
 
     public static ByteBuf fromNioBuffer(ByteBuffer buffer) {
-        return Unpooled.wrappedBuffer(buffer);
+        ByteBuf data = PooledByteBufAllocator.DEFAULT.buffer();
+        data.writeBytes(buffer);
+        return data;
     }
 }

@@ -1,8 +1,11 @@
 package com.lob.tunner.client;
 
+import com.lob.tunner.BlockUtils;
 import com.lob.tunner.BufferUtils;
 import com.lob.tunner.OOOException;
+import com.lob.tunner.common.Block;
 import com.lob.tunner.logger.AutoLog;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.socket.SocketChannel;
 
 import java.nio.ByteBuffer;
@@ -21,6 +24,9 @@ public class Connection {
     private short _reqSeq = 0;
     private short _resSeq = 0;
 
+    private long _lastWrite = System.currentTimeMillis();
+    private long _lastRead = System.currentTimeMillis();
+
     public Connection(SocketChannel channel) {
         _id = (int)((System.currentTimeMillis() / 1000) * 1000) + _COUNTER.incrementAndGet() % 1000;
         _channel = channel;
@@ -37,17 +43,62 @@ public class Connection {
     }
 
     public short nextRequest() {
-        return _reqSeq ++;
+        short seq = _reqSeq;
+        _reqSeq = BlockUtils.nextSeqence(seq);
+        return seq;
     }
 
-    public void write(short seq, ByteBuffer data) throws OOOException {
+    public long lastRead() {
+        return _lastRead;
+    }
+
+    public long lastWrite() {
+        return _lastWrite;
+    }
+
+    public void timeout(long now) {
+        AutoLog.WARN.log(
+                "Timing out connection %08x (lastRead=%d secs, lastWrite=%d secs)",
+                _id, (now - _lastRead) / 1000, (now - _lastWrite) / 1000
+        );
+
+        TunnelManager.getInstance().close(this);
+    }
+
+    /**
+     * Write response back to client APP
+     * @param block
+     * @throws OOOException
+     */
+    public void respond(Block block) throws OOOException {
+        short seq = block.sequence();
         if(_resSeq != seq) {
-            AutoLog.ERROR.log("Got response with incorrect sequence - " + _id);
+            AutoLog.ERROR.log("Got response with incorrect sequence %d (expecting %d) on connection %08x!!!", seq, _resSeq, _id);
             throw new OOOException(_resSeq, seq);
         }
 
-        _resSeq ++;
-        _channel.writeAndFlush(BufferUtils.fromNioBuffer(data));
+        _resSeq = BlockUtils.nextSeqence(seq);
+
+        ChannelFuture future = _channel.writeAndFlush(BufferUtils.fromNioBuffer(block.data()));
+        if(block.length() >= 0x8FFF) {
+            long start = System.currentTimeMillis();
+            future.addListener(f -> {
+                long end = System.currentTimeMillis();
+                if(f.isSuccess()) {
+                    AutoLog.INFO.log("#####Block with seq %d written out in %d millis on connection %08x...", seq, end - start, _id);
+                }
+                else {
+                    AutoLog.INFO.exception(f.cause()).log("#####Block with seq %d FAILED after %d millis on connection %08x...", seq, end - start, _id);
+                }
+            });
+        }
+
+        _lastWrite = System.currentTimeMillis();
+    }
+
+    public void request(Block block) {
+        _tunnel.write(block);
+        _lastRead = System.currentTimeMillis();
     }
 
     public Tunnel tunnel() {

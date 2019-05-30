@@ -26,11 +26,22 @@ public class Connection {
     private short _reqSeq = 0;
     private short _resSeq = 0;
 
+    private long _lastWrite = System.currentTimeMillis();
+    private long _lastRead = System.currentTimeMillis();
+
     private boolean _connected = false;
     private final LinkedList<Block> _blocks = new LinkedList<>();
 
     public Connection(int id) {
         _id = id;
+    }
+
+    public long lastRead() {
+        return _lastRead;
+    }
+
+    public long lastWrite() {
+        return _lastWrite;
     }
 
     public final int identifier() {
@@ -54,7 +65,7 @@ public class Connection {
     }
 
     public void connect(String address, int port) {
-        AutoLog.INFO.log("Try connecting to proxy %s:%d ...", address, port);
+        AutoLog.DEBUG.log("Connection %08x try connecting to proxy %s:%d ...", _id, address, port);
         // create a connection ...
         Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(TunnelManager.CONNWORKERS)
@@ -70,15 +81,6 @@ public class Connection {
 
         bootstrap.connect(address, port).addListener(future -> {
             if (future.isSuccess()) {
-                AutoLog.INFO.log("连接成功: 到代理服务器,允许读浏览器请求: %08x", _id);
-
-                try {
-                    Thread.sleep(2000);
-                }
-                catch(InterruptedException ie) {
-
-                }
-
                 AutoLog.INFO.log("Connection %08x connect to proxy successfully", _id);
 
                 synchronized (_blocks) {
@@ -94,10 +96,19 @@ public class Connection {
                 _channel.config().setAutoRead(true);
             }
             else {
-                AutoLog.ERROR.log("连接失败:  到代理服务器: %08x", _id);
+                AutoLog.ERROR.log("Connection %08x failed to connect proxy!", _id);
                 shutdown();
             }
         });
+    }
+
+    public void timeout(long now) {
+        AutoLog.WARN.log(
+                "Timing out connection %08x (lastRead=%d secs, lastWrite=%d secs)",
+                _id, (now - _lastRead) / 1000, (now - _lastWrite) / 1000
+        );
+
+        TunnelManager.getInstance().close(this);
     }
 
     public void shutdown() {
@@ -125,12 +136,14 @@ public class Connection {
                 return;
             }
 
-            AutoLog.INFO.log("Connection %08x just started. Writing %d cached block ...", _id, _blocks.size());
+            if(_blocks.size() > 0) {
+                AutoLog.DEBUG.log("Connection %08x just started. Writing %d cached block ...", _id, _blocks.size());
 
-            // Let's finish queued blocks first!
-            while(_blocks.size() > 0) {
-                Block b = _blocks.remove();
-                _write(b);
+                // Let's finish queued blocks first!
+                while (_blocks.size() > 0) {
+                    Block b = _blocks.remove();
+                    _write(b);
+                }
             }
         }
 
@@ -143,10 +156,12 @@ public class Connection {
             throw new OOOException(_reqSeq, seq);
         }
 
-        AutoLog.INFO.log("Writing block %d of %d bytes on connection %08x ...", _reqSeq, block.length(), _id);
+        AutoLog.INFO.log("Connection %08x write %d bytes (seq=%d) to proxy server", _id, block.length(), _reqSeq);
 
         ByteBuffer data = block.data();
         ChannelFuture future = _channel.writeAndFlush(BufferUtils.fromNioBuffer(data));
+
+        /*
         future.addListener(future1 -> {
             if (future1.isSuccess()) {
                 AutoLog.INFO.log("Write data suceeded!");
@@ -155,7 +170,10 @@ public class Connection {
                 AutoLog.ERROR.exception(future.cause()).log("Write data failed!!!");
             }
         });
-        _reqSeq ++;
+        */
+        _reqSeq = BlockUtils.nextSeqence(seq);
+
+        _lastWrite = System.currentTimeMillis();
     }
 
     class IOHandler extends ChannelInboundHandlerAdapter {
@@ -169,13 +187,58 @@ public class Connection {
         public void channelRead(ChannelHandlerContext localCtx, Object msg) throws Exception {
             ByteBuf buf = (ByteBuf)msg;
 
+            /*
             int len = buf.readableBytes();
-            if(len > 0xFFFF) {
+            if(len >= 0xFFFF) {
                 AutoLog.ERROR.log("Read packet of too large size! " + _id);
                 throw new IOException("Packet size too large - " + len);
             }
 
+            AutoLog.INFO.log("Connection %08x read %d bytes (seq=%d) from proxy ...", _id, len, _resSeq);
+
             _tunnel.write(new Block(_id, BlockUtils.sequence(_resSeq ++), (short)len, BufferUtils.toNioBuffer(buf)));
+            */
+
+            //
+            // Create a block from the buffer and send it to tunnel
+            int bytes = buf.readableBytes();
+
+            AutoLog.INFO.log("Connection %08x read %d bytes (seq=%d) from proxy ...", _id, bytes, _resSeq);
+
+            for(;;) {
+                // we need to split to smaller packets!!! Unlucky!!!!
+                if(bytes > Block.MAX_LENGTH) {
+                    ByteBuffer data = ByteBuffer.allocate(Block.MAX_NO_PADDING_LENGTH);
+                    buf.readBytes(data);
+                    data.rewind();
+
+                    Block block = new Block(
+                            _id, BlockUtils.sequence(_resSeq),
+                            Block.MAX_NO_PADDING_LENGTH, data
+                    );
+
+                    _tunnel.write(block);
+
+                    bytes -= Block.MAX_NO_PADDING_LENGTH;
+                    _resSeq = BlockUtils.nextSeqence(_resSeq);
+
+                    AutoLog.DEBUG.log("########Left %d bytes (readable=%d) and next seq=%d ...", bytes, buf.readableBytes(), _resSeq);
+                    continue;
+                }
+
+                Block block = new Block(
+                        _id, BlockUtils.sequence(_resSeq),
+                        bytes, BufferUtils.toNioBuffer(buf)
+                );
+
+                _tunnel.write(block);
+                _resSeq = BlockUtils.nextSeqence(_resSeq);
+
+                break;
+            }
+
+            _lastRead = System.currentTimeMillis();
+
             ReferenceCountUtil.release(msg);
         }
 

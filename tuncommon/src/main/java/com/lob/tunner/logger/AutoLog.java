@@ -3,18 +3,26 @@ package com.lob.tunner.logger;
 import com.sun.org.apache.bcel.internal.generic.ILOAD;
 import org.omg.CORBA.NO_IMPLEMENT;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 public class AutoLog {
     private AutoLog() {
 
     }
 
+    private static SimpleDateFormat _FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+    private static String _timestamp() {
+        return _FORMAT.format(new Date());
+    }
+
     private static ILogger _impl = new ILogger() {
         boolean enable(int type) {
-            return true;
+            return type >= ILogger.INFO;
         }
 
         ILogger message(int level, String msg, String context) {
-            System.out.println(String.format("%3d %s", level, msg));
+            System.out.println(String.format("[%s] %3d %s", _timestamp(), level, msg));
             if(context != null) {
                 System.out.println(context);
             }
@@ -22,7 +30,7 @@ public class AutoLog {
         }
 
         ILogger message(int level, String msg, String context, Throwable e) {
-            System.out.println(String.format("%3d %s", level, msg));
+            System.out.println(String.format("[%s] %3d %s", _timestamp(), level, msg));
             if(context != null) {
                 System.out.println(context);
             }
@@ -31,7 +39,7 @@ public class AutoLog {
         }
 
         ILogger notice(int level, String cause, String action, String context) {
-            System.out.println(String.format("%3d %s %s", level, cause, action));
+            System.out.println(String.format("[%s] %3d %s %s", _timestamp(), level, cause, action));
             if(context != null) {
                 System.out.println(context);
             }
@@ -40,7 +48,7 @@ public class AutoLog {
         }
 
         ILogger notice(int level, String cause, String action, String context, Throwable e) {
-            System.out.println(String.format("%3d %s %s", level, cause, action));
+            System.out.println(String.format("[%s] %3d %s %s", _timestamp(), level, cause, action));
             if(context != null) {
                 System.out.println(context);
             }

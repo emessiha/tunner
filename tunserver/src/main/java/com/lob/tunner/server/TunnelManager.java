@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Tunnel are using SSHJ, which cannot use netty, we'll have to rely on native java Sockets
@@ -22,9 +23,11 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class TunnelManager {
     private TunnelManager() {
-
+        new TimeoutThread().start();
     }
 
+    public static AtomicLong TotalRead = new AtomicLong(0);
+    public static AtomicLong TotalWrite = new AtomicLong(0);
     public final static EventLoopGroup CONNWORKERS = new NioEventLoopGroup(1);
 
     private static final TunnelManager _INST = new TunnelManager();
@@ -46,6 +49,7 @@ public class TunnelManager {
      * @param tunnel
      */
     public synchronized void accept(Tunnel tunnel) throws IOException {
+        AutoLog.INFO.log("New tunnel %08x created by client ...", tunnel.identifier());
         _tunnels.add(tunnel);
     }
 
@@ -68,7 +72,7 @@ public class TunnelManager {
      * @param data
      */
     public void handleControlBlock(Tunnel tunnel, int conId, short control, ByteBuffer data) {
-        AutoLog.INFO.log("Handling control %04x for connection %08x ...", control, conId);
+        AutoLog.DEBUG.log("Handling control %04x for connection %08x on tunnel %08x...", control, conId, tunnel.identifier());
 
         switch(control) {
             case Block.CODE_START:
@@ -81,6 +85,7 @@ public class TunnelManager {
                     throw new RuntimeException(String.format("Found already existing connection %08x", conId));
                 }
                 else {
+                    AutoLog.INFO.log("Starting one new connection %08x on tunnel %08x ...", conId, tunnel.identifier());
                     Connection conn = new Connection(conId);
                     _connections.put(conId, conn);
 
@@ -104,10 +109,11 @@ public class TunnelManager {
                 break;
             case Block.CODE_ABORT:
                 if(!_connections.containsKey(conId)) {
-                    AutoLog.WARN.log("Abort non-existing connection %08x", conId);
+                    AutoLog.WARN.log("Abort non-existing connection %08x on tunnel %08x", conId, tunnel.identifier());
                     break;
                 }
                 else {
+                    AutoLog.INFO.log("Shutting down one connection %08x on tunnel %08x ...", conId, tunnel.identifier());
                     Connection conn = _connections.remove(conId);
                     tunnel.remove(conn);
                     conn.shutdown();
@@ -119,6 +125,41 @@ public class TunnelManager {
                 break;
             default:
                 break;
+        }
+    }
+
+    private void _checkTimeouts() {
+        // for connections without active for more than 30 seconds, let's kill them ...
+        long now = System.currentTimeMillis();
+        long timeout = now - 30 * 1000;
+
+        _connections.values().forEach(conn -> {
+            if(conn.lastRead() < timeout && conn.lastWrite() < timeout) {
+                conn.timeout(now);
+            }
+        });
+    }
+
+    class TimeoutThread extends Thread {
+        @Override
+        public void run() {
+            while(true) {
+                try {
+                    Thread.sleep(30 * 1000);
+                }
+                catch(InterruptedException ie) {
+                    // ignore
+                }
+
+                _checkTimeouts();
+
+                System.out.println(String.format(
+                        "=====================================================================\n" +
+                                " Total Connections=%d, Total Read=%d bytes, Total Write=%d bytes\n" +
+                                "=====================================================================",
+                        _connections.size(), TotalRead.getAndSet(0), TotalWrite.getAndSet(0)
+                ));
+            }
         }
     }
 }

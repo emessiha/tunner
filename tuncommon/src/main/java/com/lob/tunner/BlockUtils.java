@@ -1,6 +1,10 @@
 package com.lob.tunner;
 
+import sun.management.snmp.jvmmib.JVM_MANAGEMENT_MIB;
+
 public class BlockUtils {
+    public static final short MAX_SEQ = 0x3FFF;
+
     public static final byte[] PADDING = new byte[]{
             (byte)0xff,
             (byte)0xff,
@@ -18,7 +22,15 @@ public class BlockUtils {
      * @return
      */
     public static short sequence(short seq) {
-        return (short)(0x4000 | (seq & 0x3FFF));
+        return (short)(0x4000 | (seq & MAX_SEQ));
+    }
+
+    public static short nextSeqence(short seq) {
+        if(seq == MAX_SEQ) {
+            return 0;
+        }
+
+        return (short)(seq + 1);
     }
 
     /**

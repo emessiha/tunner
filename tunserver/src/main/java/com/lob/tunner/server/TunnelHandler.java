@@ -36,7 +36,6 @@ public class TunnelHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
         TunnelManager.getInstance().accept(this._tunnel);
-        AutoLog.INFO.log("Handle new tunnel from client ...");
         super.channelRegistered(ctx);
     }
 
@@ -60,8 +59,9 @@ public class TunnelHandler extends ChannelInboundHandlerAdapter {
     public void channelRead(ChannelHandlerContext localCtx, Object msg) throws Exception {
         ByteBuf buf = (ByteBuf)msg;
 
-        AutoLog.INFO.log("Read %d bytes from client ...", buf.readableBytes());
-        _tunnel.read(BufferUtils.toNioBuffer(buf));
+        // AutoLog.INFO.log("Read %d bytes from client ...", buf.readableBytes());
+        // _tunnel.read(BufferUtils.toNioBuffer(buf));
+        _tunnel.read(buf);
 
         ReferenceCountUtil.release(msg);
     }

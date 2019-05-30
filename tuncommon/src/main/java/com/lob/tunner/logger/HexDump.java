@@ -17,6 +17,11 @@ public final class HexDump {
 
         for (int i = offset ; i < offset + length ; i++)
         {
+            if(i >= array.length) {
+                // NO DATA!!!
+                break;
+            }
+
             if(lineIndex == 0) {
                 if(i > offset) {
                     // more data, so new line

@@ -4,11 +4,13 @@ import com.lob.tunner.BlockUtils;
 import com.lob.tunner.common.Block;
 import com.lob.tunner.common.Config;
 import com.lob.tunner.logger.AutoLog;
+import io.netty.channel.Channel;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Tunnel are using SSHJ, which cannot use netty, we'll have to rely on native java Sockets
@@ -20,8 +22,11 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class TunnelManager {
     private TunnelManager() {
-
+        new TimeoutThread().start();
     }
+
+    public static AtomicLong TotalRead = new AtomicLong(0);
+    public static AtomicLong TotalWrite = new AtomicLong(0);
 
     private static final TunnelManager _INST = new TunnelManager();
     public static TunnelManager getInstance() {
@@ -41,7 +46,7 @@ public class TunnelManager {
      * 3. If tunnel's threshold met, let's create a new tunnel
      * @param conn
      */
-    public synchronized void accept(Connection conn) throws IOException {
+    public synchronized void accept(Connection conn, Channel channel) throws IOException {
         Tunnel tunnel = _findTunnel();
 
         if(tunnel == null) {
@@ -52,6 +57,7 @@ public class TunnelManager {
             throw new IOException("Cannot find tunnel to multiplexing connection - " + conn.getID());
         }
 
+        AutoLog.INFO.log("Starting one new connection %08x (channel=%s) on tunnel %08x ...", conn.getID(), channel, tunnel.getID());
         _connections.put(conn.getID(), conn);
         tunnel.multiplex(conn);
         conn.attach(tunnel);
@@ -72,6 +78,8 @@ public class TunnelManager {
         _connections.remove(connId);
 
         Tunnel tunnel = conn.tunnel();
+
+        AutoLog.INFO.log("Shutting one connection %08x on tunnel %08x ...", conn.getID(), tunnel.getID());
 
         // notify server ...
         tunnel.write(new Block(connId, BlockUtils.control(Block.CODE_ABORT)));
@@ -134,5 +142,40 @@ public class TunnelManager {
         _tunnels.add(tunnel);
 
         return tunnel;
+    }
+
+    private void _timeout() {
+        // for connections without active for more than 30 seconds, let's kill them ...
+        long now = System.currentTimeMillis();
+        long timeout = now - 30 * 1000;
+
+        _connections.values().forEach(conn -> {
+            if(conn.lastRead() < timeout && conn.lastWrite() < timeout) {
+                conn.timeout(now);
+            }
+        });
+    }
+
+    class TimeoutThread extends Thread {
+        @Override
+        public void run() {
+            while(true) {
+                try {
+                    Thread.sleep(30 * 1000);
+                }
+                catch(InterruptedException ie) {
+                    // ignore
+                }
+
+                _timeout();
+
+                System.out.println(String.format(
+                        "=====================================================================\n" +
+                        " Total Connections=%d, Total Read=%d bytes, Total Write=%d bytes\n" +
+                        "=====================================================================",
+                        _connections.size(), TotalRead.getAndSet(0), TotalWrite.getAndSet(0)
+                ));
+            }
+        }
     }
 }
