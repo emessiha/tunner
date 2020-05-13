@@ -53,9 +53,15 @@ public class AccountDao {
      * TODO: remove me
      */
     public static List<Account> getAll(Connection conn, String coreDb) throws SQLException {
+        DbQuery q = new DbQuery(String.format(SQL_GETALL, coreDb));
+
+        return q.queryList(conn, _LOADER::load);
+
+        /*
         return DaoUtils.getList(conn,
                 String.format(SQL_GETALL, coreDb),
                 _LOADER::load);
+         */
     }
 
     public static void add(Connection conn,
