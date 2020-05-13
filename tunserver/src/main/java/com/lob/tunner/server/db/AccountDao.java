@@ -81,7 +81,10 @@ public class AccountDao {
     public static void delete(Connection conn, String dbName, long id) throws SQLException {
         // DaoUtils.executeUpdate(conn, String.format(SQL_DELETE, dbName), id);
         String sql = String.format(SQL_DELETE, dbName);
-        _update(conn, sql, id);
+
+        DbUpdator updator = new DbUpdator(dbName, sql);
+
+        updator.update(conn);
     }
 
 
