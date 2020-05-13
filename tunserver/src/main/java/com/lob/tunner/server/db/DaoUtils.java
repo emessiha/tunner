@@ -192,9 +192,9 @@ public class DaoUtils {
 
 
     public static void executeUpdate(final Connection conn, final String sqlQuery) throws SQLException {
-        DbUpdator updator = new DbUpdator(sqlQuery);
+        DbUpdator updator = new DbUpdator(conn, sqlQuery);
 
-        updator.update(conn);
+        updator.update();
     }
 
 
@@ -390,6 +390,9 @@ public class DaoUtils {
     public static int executeUpdate(Connection conn,
                                     String sql,
                                     Object... params) throws SQLException {
+        DbUpdator updator = new DbUpdator(conn, sql, params);
+        return updator.update();
+        /*
         PreparedStatement pstmt = conn.prepareStatement(sql);
         try {
             _bindParameters(pstmt, params);
@@ -398,6 +401,7 @@ public class DaoUtils {
         finally {
             closeQuietly(pstmt);
         }
+         */
     }
 
 

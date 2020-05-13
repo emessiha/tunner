@@ -82,9 +82,9 @@ public class AccountDao {
         // DaoUtils.executeUpdate(conn, String.format(SQL_DELETE, dbName), id);
         String sql = String.format(SQL_DELETE, dbName);
 
-        DbUpdator updator = new DbUpdator(sql);
+        DbUpdator updator = new DbUpdator(conn, sql);
 
-        updator.update(conn);
+        updator.update();
     }
 
 
