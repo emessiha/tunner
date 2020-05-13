@@ -15,26 +15,26 @@ import java.util.List;
  " ) engine=innodb
  */
 public class AccountDao {
-    private final static String SQL_GETALL = "SELECT id, name, properties FROM accounts";
-    private final static String SQL_INSERT = "INSERT INTO accounts (id, name, properties) VALUE (?, ?, ?)";
-    private final static String SQL_DELETE = "DELETE FROM accounts WHERE id=?";
-    private final static String SQL_UPDATE = "UPDATE accounts set properties=? WHERE id=?";
-    private final static String SQL_GET_BY_NAME = "SELECT id, name, properties FROM accounts WHERE name=?";
-    private final static String SQL_GET_BY_ID = "SELECT id, name, properties FROM accounts WHERE id=?";
+    private final static String SQL_GETALL = "SELECT id, name, properties FROM %s.accounts";
+    private final static String SQL_INSERT = "INSERT INTO %s.accounts (id, name, properties) VALUE (?, ?, ?)";
+    private final static String SQL_DELETE = "DELETE FROM %s.accounts WHERE id=?";
+    private final static String SQL_UPDATE = "UPDATE %s.accounts set properties=? WHERE id=?";
+    private final static String SQL_GET_BY_NAME = "SELECT id, name, properties FROM %s.accounts WHERE name=?";
+    private final static String SQL_GET_BY_ID = "SELECT id, name, properties FROM %s.accounts WHERE id=?";
 
     /*
-    * createTable must have dbName parameter although we didn't use it
-    * Because we will use reflect to call createTable when create db
-    */
+     * createTable must have dbName parameter although we didn't use it
+     * Because we will use reflect to call createTable when create db
+     */
     public static void createTable(Connection conn, String dbName) throws SQLException {
-        String sql =
-                "CREATE TABLE IF NOT EXISTS accounts (\n" +
+        String sql = String.format(
+                "CREATE TABLE IF NOT EXISTS %s.accounts (\n" +
                         "         id BIGINT not null primary key,\n" +
                         "         name VARCHAR(128) not null unique,\n" +
                         "         properties JSON not null \n" +
-                        "        ) engine=innodb ROW_FORMAT=DYNAMIC";
-
-        DaoUtils.executeUpdate(conn, sql, dbName);
+                        "        ) engine=innodb ROW_FORMAT=DYNAMIC", dbName
+        );
+        DaoUtils.executeUpdate(conn, sql);
     }
 
 
@@ -49,63 +49,44 @@ public class AccountDao {
         }
     };
 
-    public static List<Account> getAll(Connection conn, String coreDb) throws SQLException {
-        return DaoUtils.getList(conn, SQL_GETALL, coreDb, _LOADER::load);
-    }
-
-
     /**
-     * Remove all accounts from the accounts table
+     * TODO: remove me
      */
-    public static void removeAll(Connection conn, String dbName) throws SQLException {
-        DaoUtils.executeUpdate(conn, "DELETE FROM accounts", dbName);
+    public static List<Account> getAll(Connection conn, String coreDb) throws SQLException {
+        return DaoUtils.getList(conn,
+                String.format(SQL_GETALL, coreDb),
+                _LOADER::load);
     }
 
-    public static void add(Connection conn, String dbName, long id, String name, String properties) throws SQLException {
+    public static void add(Connection conn,
+                           String dbName,
+                           long id,
+                           String name,
+                           String properties) throws SQLException {
         String strProperties = properties==null ? "{}" : properties.toString();
 
-        DaoUtils.executeUpdate(conn, SQL_INSERT, dbName, id, name, strProperties);
+        DaoUtils.executeUpdate(conn, String.format(SQL_INSERT, dbName), id, name, strProperties);
     }
 
-    /*
-    public static void add(@NonNull Connection conn, @NonNull Account account) throws SQLException {
-        DaoUtils.executeUpdate(conn, SQL_INSERT, Constants.COREDB, account.getId(), account.getName(), account.getProperties());
+    public static void add(Connection conn, String dbName, Account account) throws SQLException {
+        DaoUtils.executeUpdate(conn, String.format(SQL_INSERT, dbName), account.getId(), account.getName(), account.getProperties());
     }
 
-    public static void update(@NonNull Connection conn, long id, @NonNull Account account) throws SQLException {
-        DaoUtils.executeUpdate(conn, SQL_UPDATE, Constants.COREDB, account.getProperties(), id);
+    public static void update(Connection conn, String dbName, long id, Account account) throws SQLException {
+        DaoUtils.executeUpdate(conn, String.format(SQL_UPDATE, dbName), account.getProperties(), id);
     }
 
-    public static void delete(@NonNull Connection conn, long id) throws SQLException {
-        DaoUtils.executeUpdate(conn, SQL_DELETE, Constants.COREDB, id);
-    }
-
-
-    public static Account get(@NonNull Connection conn, @NonNull String name) throws SQLException {
-        return DaoUtils.get(conn, SQL_GET_BY_NAME, Constants.COREDB, _LOADER::load, name);
+    public static void delete(Connection conn, String dbName, long id) throws SQLException {
+        DaoUtils.executeUpdate(conn, String.format(SQL_DELETE, dbName), id);
     }
 
 
-    public static Account get(@NonNull Connection conn, long id) throws SQLException {
-        Preconditions.checkArgument(id > 0);
-        return DaoUtils.get(conn, SQL_GET_BY_ID, Constants.COREDB, _LOADER::load, id);
+    public static Account get(Connection conn, String dbName, String name) throws SQLException {
+        return DaoUtils.get(conn, String.format(SQL_GET_BY_NAME, dbName), _LOADER::load, name);
     }
 
 
-    public static void updateStatus(@NonNull Connection conn,
-                                    long acctId,
-                                    String newStatus) throws SQLException {
-        Preconditions.checkArgument(acctId > 0 &&
-            !StringUtils.isEmpty(newStatus) &&
-            Account.isValidStatus(newStatus));
-
-        Account account = get(conn, acctId);
-        if (account == null)
-            throw new IllegalArgumentException("No such account - " + acctId);
-        JSONObject jprops = new JSONObject(account.getProperties());
-        jprops.put("status", newStatus);
-
-        DaoUtils.executeUpdate(conn, SQL_UPDATE, Constants.COREDB, jprops.toString(), acctId);
+    public static Account get(Connection conn, String dbName, long id) throws SQLException {
+        return DaoUtils.get(conn, String.format(SQL_GET_BY_ID, dbName), _LOADER::load, id);
     }
-     */
 }

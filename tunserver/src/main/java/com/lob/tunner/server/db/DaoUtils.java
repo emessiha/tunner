@@ -29,7 +29,7 @@ public class DaoUtils {
         DaoUtils._connPool = connPool;
     }
 
-    public static void waitForReady(long timeoutInMs) throws SQLException {
+    public static void waitForReady(long timeoutInMs) throws SQLException{
         long startEpochInMs = System.currentTimeMillis();
         while (true) {
             if (System.currentTimeMillis() - startEpochInMs >= timeoutInMs) {
@@ -39,9 +39,8 @@ public class DaoUtils {
             Connection conn = null;
             try {
                 conn = getConnection();
-                Long upTimeInSeconds = _get(conn, "show global status like 'uptime'", rs -> rs.getLong(2));
+                Long upTimeInSeconds = get(conn, "show global status like 'uptime'", rs -> rs.getLong(2));
                 if (null != upTimeInSeconds) {
-                    System.out.println("MySQL uptime - " + upTimeInSeconds);
                     break;
                 }
             }
@@ -180,7 +179,7 @@ public class DaoUtils {
         }
     }
 
-    public static boolean columnExists(Connection conn, String dbName, String tableName, String column) throws SQLException {
+    public static boolean columnExists(Connection conn, String dbName, String tableName, String column) throws SQLException{
         ResultSet rs = null;
         try {
             rs = conn.getMetaData().getColumns(dbName, null, tableName, column);
@@ -192,9 +191,7 @@ public class DaoUtils {
     }
 
 
-    public static void executeUpdate(final Connection conn, final String sqlQuery, final String dbName) throws SQLException {
-        conn.setCatalog(dbName);
-
+    public static void executeUpdate(final Connection conn, final String sqlQuery) throws SQLException {
         Statement stmt = conn.createStatement();
         try {
             stmt.executeUpdate(sqlQuery);
@@ -207,25 +204,27 @@ public class DaoUtils {
 
     /**
      * Create a database using innodb as the engine, and UTF-8 as charset and collation
-     * // TODO Create DB test
      */
     public static void createDb(final Connection conn,
                                 final String dbName) throws SQLException {
         // create the control db
-        System.out.println("Create a database - " + dbName);
-        String sql = "CREATE DATABASE IF NOT EXISTS ? DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_general_ci";
-        executeUpdate(conn, sql, null, dbName);
+        String sql = String.format(
+                "CREATE DATABASE IF NOT EXISTS %s DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_general_ci", dbName);
+        executeUpdate(conn, sql);
     }
 
 
-    public static void dropDb(Connection conn, String dbName) throws SQLException {
-        System.out.println("Drop a database " + dbName);
-        String sql = "DROP DATABASE IF EXISTS " + dbName;
-        executeUpdate(conn, sql, null);
+    public static void dropDb(Connection conn,
+                              String dbName) throws SQLException {
+        String sql = String.format(
+                "DROP DATABASE IF EXISTS %s", dbName
+        );
+        executeUpdate(conn, sql);
     }
 
 
-    public static void dropDbQuietly(Connection conn, String dbName) {
+    public static void dropDbQuietly(Connection conn,
+                                     String dbName) {
         try {
             dropDb(conn, dbName);
         }
@@ -234,12 +233,12 @@ public class DaoUtils {
         }
     }
 
+
     public static void dropTable(Connection conn,
                                  String dbName,
                                  String tableName) throws SQLException {
-        System.out.println("Drop a table " + tableName + " from database " + dbName);
-        String sql = "DROP TABLE " + tableName;
-        executeUpdate(conn, sql, dbName);
+        String sql = String.format("DROP TABLE %s.%s", dbName, tableName);
+        executeUpdate(conn, sql);
     }
 
 
@@ -254,12 +253,11 @@ public class DaoUtils {
         }
     }
 
+
     public static <T> List<T> getList(Connection conn,
                                       String sql,
-                                      String dbName,
                                       RecordLoader<T> rLoader,
                                       Object... params) throws SQLException {
-        conn.setCatalog(dbName);
         PreparedStatement pstmt = conn.prepareStatement(sql);
         ResultSet rs = null;
         try {
@@ -279,17 +277,8 @@ public class DaoUtils {
 
     public static <T> T get(Connection conn,
                             String sql,
-                            String dbName,
                             RecordLoader<T> rLoader,
                             Object... params) throws SQLException {
-        conn.setCatalog(dbName);
-        return _get(conn, sql, rLoader, params);
-    }
-
-    private static <T> T _get(Connection conn,
-                              String sql,
-                              RecordLoader<T> rLoader,
-                              Object...params) throws SQLException {
         PreparedStatement pstmt = conn.prepareStatement(sql);
         ResultSet rs = null;
         try {
@@ -306,6 +295,7 @@ public class DaoUtils {
         }
     }
 
+
     private final static RecordLoader<Integer> _INT_LOADER = new RecordLoader<Integer>() {
         @Override
         public Integer load(final ResultSet rs) throws SQLException {
@@ -316,17 +306,15 @@ public class DaoUtils {
 
     public static Integer getInt(Connection conn,
                                  String sql,
-                                 String dbName,
                                  Object... params) throws SQLException {
-        return get(conn, sql, dbName, _INT_LOADER::load, params);
+        return get(conn, sql, _INT_LOADER::load, params);
     }
 
 
     public static List<Integer> getIntList(Connection conn,
                                            String sql,
-                                           String dbName,
                                            Object... params) throws SQLException {
-        return getList(conn, sql, dbName, _INT_LOADER::load, params);
+        return getList(conn, sql, _INT_LOADER::load, params);
     }
 
 
@@ -340,19 +328,15 @@ public class DaoUtils {
 
     public static Long getLong(Connection conn,
                                String sql,
-                               String dbName,
                                Object... params) throws SQLException {
-        conn.setCatalog(dbName);
-        return get(conn, sql, dbName, _LONG_LOADER::load, params);
+        return get(conn, sql, _LONG_LOADER::load, params);
     }
 
 
     public static List<Long> getLongList(Connection conn,
                                          String sql,
-                                         String dbName,
                                          Object... params) throws SQLException {
-        conn.setCatalog(dbName);
-        return getList(conn, sql, dbName, _LONG_LOADER::load, params);
+        return getList(conn, sql, _LONG_LOADER::load, params);
     }
 
 
@@ -363,19 +347,16 @@ public class DaoUtils {
         }
     };
 
-    public static String getString(Connection conn, String sql, String dbName, Object... params) throws SQLException {
-        return get(conn, sql, dbName, _STRING_LOADER::load, params);
+    public static String getString(Connection conn, String sql, Object... params) throws SQLException {
+        return get(conn, sql, _STRING_LOADER::load, params);
     }
 
 
     public static <K, V> Map<K, V> getMap(Connection conn,
                                           String sql,
-                                          String dbName,
                                           RecordLoader<Map.Entry<K, V>> loader,
                                           Object... params)
             throws SQLException {
-        conn.setCatalog(dbName);
-
         PreparedStatement pstmt = conn.prepareStatement(sql);
         ResultSet rs = null;
         try {
@@ -399,26 +380,20 @@ public class DaoUtils {
     private final static RecordLoader<Map.Entry<Long, Long>> _LONG_LONG_LOADER = new RecordLoader<Map.Entry<Long, Long>>() {
         @Override
         public Map.Entry<Long, Long> load(final ResultSet rs) throws SQLException {
-            return new KeyValueHolder<Long, Long>(rs.getLong(1), rs.getLong(2));
+            return new KeyValueHolder<>(rs.getLong(1), rs.getLong(2));
         }
     };
 
     public static Map<Long, Long> getMapOfLongToLong(Connection conn,
                                                      String sql,
-                                                     String dbName,
                                                      Object... params) throws SQLException {
-        return getMap(conn, sql, dbName, _LONG_LONG_LOADER::load, params);
+        return getMap(conn, sql, _LONG_LONG_LOADER::load, params);
     }
 
 
     public static int executeUpdate(Connection conn,
                                     String sql,
-                                    String dbName,
                                     Object... params) throws SQLException {
-        if(dbName == null || dbName.isEmpty()) {
-            conn.setCatalog(dbName);
-        }
-
         PreparedStatement pstmt = conn.prepareStatement(sql);
         try {
             _bindParameters(pstmt, params);
@@ -432,9 +407,7 @@ public class DaoUtils {
 
     public static long executeUpdateWithLastInsertId(Connection conn,
                                                      String sql,
-                                                     String dbName,
                                                      Object... params) throws SQLException {
-        conn.setCatalog(dbName);
         PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
         ResultSet keys = null;
         try {
@@ -490,11 +463,11 @@ public class DaoUtils {
                 continue;
             }
             else {
-              if (param == null) {
-                  pstmt.setNull(idx, Types.NULL);
-              } else {
-                  pstmt.setString(idx, param.toString());
-              }
+                if (param == null) {
+                    pstmt.setNull(idx, Types.NULL);
+                } else {
+                    pstmt.setString(idx, param.toString());
+                }
             }
 
             idx++;
