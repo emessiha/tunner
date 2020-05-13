@@ -21,7 +21,7 @@ public class DbUpdator extends DbOperator {
         s.executeUpdate(_sql);
 
         final String sql = _sql;
-        PreparedStatement stmt = _conn.prepareStatement(sql);
+        PreparedStatement stmt = _create(_conn, sql);
         try {
             _bindParameters(stmt, _params);
 

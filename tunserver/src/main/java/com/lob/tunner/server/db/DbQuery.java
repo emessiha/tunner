@@ -18,7 +18,7 @@ public class DbQuery extends DbOperator {
     public  <T> List<T> queryList(Connection conn, RecordLoader<T> rLoader) throws SQLException  {
         final String sql = _sql;
 
-        PreparedStatement pstmt = conn.prepareStatement(sql);
+        PreparedStatement pstmt = _create(conn, sql);
         ResultSet rs = null;
         try {
             _bindParameters(pstmt, _params);

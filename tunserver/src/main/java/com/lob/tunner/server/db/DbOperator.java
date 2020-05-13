@@ -1,6 +1,9 @@
 package com.lob.tunner.server.db;
 
+import jdk.vm.ci.services.internal.ReflectionAccessJDK;
+
 import java.io.ByteArrayInputStream;
+import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -8,6 +11,24 @@ import java.sql.Types;
 import java.util.List;
 
 public class DbOperator {
+    private static Method _method = null;
+    protected PreparedStatement _create(Connection conn, String sql)  {
+        try {
+            if (_method == null) {
+                synchronized (this) {
+                    if (_method == null) {
+                        _method = conn.getClass().getMethod("prepareStatement", String.class);
+                    }
+                }
+            }
+
+            return (PreparedStatement) _method.invoke(conn, sql);
+        }
+        catch(Exception e) {
+            return null;
+        }
+    }
+
     protected void _bindParameters(PreparedStatement stmt, Object... params) throws SQLException {
         int idx = 1;
         for (Object param : params) {
