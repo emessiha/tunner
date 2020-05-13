@@ -17,11 +17,12 @@ public class DbUpdator extends DbOperator {
     }
 
     public int update() throws SQLException {
-        PreparedStatement stmt = _conn.prepareStatement(_sql);
+        final String sql = "foo bar foo";
+        PreparedStatement stmt = _conn.prepareStatement(sql);
         try {
             _bindParameters(stmt, _params);
 
-            return stmt.executeUpdate(_sql);
+            return stmt.executeUpdate();
         }
         finally {
             DaoUtils.closeQuietly(stmt);
