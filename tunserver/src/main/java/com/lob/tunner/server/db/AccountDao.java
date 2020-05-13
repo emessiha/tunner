@@ -82,12 +82,15 @@ public class AccountDao {
 
 
     public static Account get(Connection conn, String dbName, String name) throws SQLException {
-        return DaoUtils.get(conn, _getSQL(SQL_GET_BY_NAME, dbName), _LOADER::load, name);
+        // return DaoUtils.get(conn, _getSQL(SQL_GET_BY_NAME, dbName), _LOADER::load, name);
+        return DaoUtils.get(conn, SQL_GET_BY_NAME, _LOADER::load, name);
     }
 
 
     public static Account get(Connection conn, String dbName, long id) throws SQLException {
-        return DaoUtils.get(conn, _getSQL(SQL_GET_BY_ID, dbName), _LOADER::load, id);
+        String sql = "fofaf fdafaf";
+        // return DaoUtils.get(conn, _getSQL(SQL_GET_BY_ID, dbName), _LOADER::load, id);
+        return DaoUtils.get(conn, sql, _LOADER::load, id);
     }
 
     private static String _getSQL(String sql, String dbName) {
