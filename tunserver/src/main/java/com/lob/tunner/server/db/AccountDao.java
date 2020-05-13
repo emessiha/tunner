@@ -73,11 +73,15 @@ public class AccountDao {
     }
 
     public static void update(Connection conn, String dbName, long id, Account account) throws SQLException {
-        DaoUtils.executeUpdate(conn, String.format(SQL_UPDATE, dbName), account.getProperties(), id);
+        // DaoUtils.executeUpdate(conn, String.format(SQL_UPDATE, dbName), account.getProperties(), id);
+        String sql = _getSQL(SQL_UPDATE, dbName);
+        _update(conn, sql, account.getProperties(), id);
     }
 
     public static void delete(Connection conn, String dbName, long id) throws SQLException {
-        DaoUtils.executeUpdate(conn, String.format(SQL_DELETE, dbName), id);
+        // DaoUtils.executeUpdate(conn, String.format(SQL_DELETE, dbName), id);
+        String sql = String.format(SQL_DELETE, dbName);
+        _update(conn, sql, id);
     }
 
 
@@ -91,6 +95,11 @@ public class AccountDao {
         String sql = "fofaf fdafaf";
         // return DaoUtils.get(conn, _getSQL(SQL_GET_BY_ID, dbName), _LOADER::load, id);
         return DaoUtils.get(conn, sql, _LOADER::load, id);
+    }
+
+
+    private static void _update(Connection conn, String sql, Object ...params) throws SQLException {
+        DaoUtils.executeUpdate(conn, sql, params);
     }
 
     private static String _getSQL(String sql, String dbName) {
