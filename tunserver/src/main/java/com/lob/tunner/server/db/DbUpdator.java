@@ -7,58 +7,60 @@ import java.util.List;
 public class DbUpdator {
     private final Connection _conn;
     private final String _sql;
-    private final PreparedStatement _stmt;
+    private final Object[] _params;
 
     public DbUpdator(Connection conn, String sql, Object ...params) throws SQLException {
         _conn = conn;
 
         this._sql = sql;
-        _stmt = conn.prepareStatement(sql);
-        _bindParameters(params);
+        _params = params;
     }
 
     public int update() throws SQLException  {
+        PreparedStatement stmt = _conn.prepareStatement(_sql);
         try {
-            return _stmt.executeUpdate(_sql);
+            _bindParameters(stmt, _params);
+
+            return stmt.executeUpdate(_sql);
         }
         finally {
-            DaoUtils.closeQuietly(_stmt);
+            DaoUtils.closeQuietly(stmt);
         }
     }
 
-    private void _bindParameters(Object... params) throws SQLException {
+    private void _bindParameters(PreparedStatement stmt, Object... params) throws SQLException {
         int idx = 1;
         for (Object param : params) {
             if (param instanceof String) {
-                _stmt.setString(idx, (String)param);
+                stmt.setString(idx, (String)param);
             }
             else if (param instanceof Long) {
-                _stmt.setLong(idx, (Long)param);
+                stmt.setLong(idx, (Long)param);
             }
             else if (param instanceof Integer) {
-                _stmt.setInt(idx, (Integer)param);
+                stmt.setInt(idx, (Integer)param);
             }
             else if (param instanceof Double) {
-                _stmt.setDouble(idx, (Double)param);
+                stmt.setDouble(idx, (Double)param);
             }
             else if (param instanceof Float) {
-                _stmt.setFloat(idx, (Float)param);
+                stmt.setFloat(idx, (Float)param);
             }
             else if (param instanceof Boolean) {
                 boolean b = (Boolean)param;
-                _stmt.setBoolean(idx, b);
+                stmt.setBoolean(idx, b);
             }
             else if (param instanceof byte[]) {
-                _stmt.setBlob(idx, new ByteArrayInputStream((byte[])param));
+                stmt.setBlob(idx, new ByteArrayInputStream((byte[])param));
             }
             else if (param instanceof List) {
                 List list = (List) param;
                 for (Object o : list) {
                     if (o instanceof String) { // param is List<String>
-                        _stmt.setString(idx, (String) o);
+                        stmt.setString(idx, (String) o);
                     }
                     else if (o instanceof Long) { // param is List<Long>
-                        _stmt.setLong(idx, (Long) o);
+                        stmt.setLong(idx, (Long) o);
                     }
                     idx++;
                 }
@@ -66,9 +68,9 @@ public class DbUpdator {
             }
             else {
                 if (param == null) {
-                    _stmt.setNull(idx, Types.NULL);
+                    stmt.setNull(idx, Types.NULL);
                 } else {
-                    _stmt.setString(idx, param.toString());
+                    stmt.setString(idx, param.toString());
                 }
             }
 
