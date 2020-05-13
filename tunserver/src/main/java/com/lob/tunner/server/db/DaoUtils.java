@@ -192,13 +192,9 @@ public class DaoUtils {
 
 
     public static void executeUpdate(final Connection conn, final String sqlQuery) throws SQLException {
-        Statement stmt = conn.createStatement();
-        try {
-            stmt.executeUpdate(sqlQuery);
-        }
-        finally {
-            closeQuietly(stmt);
-        }
+        DbUpdator updator = new DbUpdator(sqlQuery);
+
+        updator.update(conn);
     }
 
 
