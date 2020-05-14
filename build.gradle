@@ -7,12 +7,14 @@ buildscript {
   }
 }
 
-allprojects {
-  apply plugin: "com.softwaresecured.reshift"
-}
-
 plugins {
     id 'java'
+}
+
+apply plugin: 'maven'
+
+allprojects {
+  apply plugin: "com.softwaresecured.reshift"
 }
 
 group 'lob'
