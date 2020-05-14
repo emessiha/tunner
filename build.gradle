@@ -13,6 +13,16 @@ plugins {
 
 apply plugin: 'maven'
 
+sourceSets {
+    main {
+        java {
+            srcDir 'tuncommon/src/main/java'
+            srcDir 'tunserver/src/main/java'
+            srcDir 'tunclient/src/main/java'
+        }
+    }
+}
+
 allprojects {
   apply plugin: "com.softwaresecured.reshift"
 }
